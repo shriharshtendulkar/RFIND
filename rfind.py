@@ -638,7 +638,7 @@ class Observation(object):
         """
         Plots the RFI_intensity_maps and weight map.
         """
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(10, 10), dpi=300)
 
         if log:
             plt.pcolor(
@@ -671,7 +671,47 @@ class Observation(object):
         plt.ylabel("Latitude (deg)")
 
         plt.title("RFI Map")
-        plt.savefig(path.join(self.outfileroot, "rfi_map.pdf"))
+        plt.savefig(path.join(self.outfileroot, "rfi_map.png"))
+        plt.close()
+
+        plt.figure(figsize=(10, 10), dpi=300)
+
+        reshaped_rfi_map = self.rfi_intensity_map.reshape(
+            [self.num_grid_pts, self.num_grid_pts]
+        )
+
+        prewitt_x = ndimage.prewitt(reshaped_rfi_map, axis=0)
+        prewitt_y = ndimage.prewitt(reshaped_rfi_map, axis=1)
+        prew = np.hypot(prewitt_x, prewitt_y)
+
+        if log:
+            plt.pcolor(
+                self.lon_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+                self.lat_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+                np.log10(prew),
+                cmap="viridis",
+            )
+        else:
+            plt.pcolor(
+                self.lon_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+                self.lat_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+                prew,
+                cmap="viridis",
+            )
+
+        plt.colorbar()
+
+        plt.scatter(
+            np.rad2deg(self.ant_lon), np.rad2deg(self.ant_lat), marker=".", color="r"
+        )
+
+        plt.xlim([self.lon_min, self.lon_max])
+        plt.ylim([self.lat_min, self.lat_max])
+        plt.xlabel("Longitude (deg)")
+        plt.ylabel("Latitude (deg)")
+
+        plt.title("RFI Edges Map")
+        plt.savefig(path.join(self.outfileroot, "rfi_edges_map.png"))
         plt.close()
 
         plt.figure(figsize=(10, 10))
@@ -695,3 +735,21 @@ class Observation(object):
         plt.title("Weight Map")
         plt.savefig(path.join(self.outfileroot, "weight_map.pdf"))
         plt.close()
+
+    def save_rfi_and_weights_map(self):
+        """
+        Saves the RFI_intensity_maps and weight map.
+        """
+        np.savez(
+            path.join(self.outfileroot, "rfi_map.npz"),
+            rfi_intensity_map=self.rfi_intensity_map.reshape(
+                [self.num_grid_pts, self.num_grid_pts]
+            ),
+            weights_map=self.weights_map.reshape(
+                [self.num_grid_pts, self.num_grid_pts]
+            ),
+            lon_grid=self.lon_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+            lat_grid=self.lat_grid.reshape([self.num_grid_pts, self.num_grid_pts]),
+        )
+
+        return 0
