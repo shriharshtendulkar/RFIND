@@ -6,6 +6,7 @@ import pyuvdata
 import numpy as np
 from scipy import fft
 from scipy.interpolate import interp1d
+from scipy import ndimage
 from matplotlib import pyplot as plt
 from os import path
 
@@ -14,6 +15,7 @@ logger.setLevel("DEBUG")
 logfile = logging.FileHandler(filename="RFIND.log")
 logger.addHandler(logfile)
 
+PLOTTYPE = 'png' # choose extension pdf or png for matplotlib
 SPEED_OF_LIGHT = 2.99792458e8  # meters per second
 
 
@@ -239,7 +241,7 @@ class Observation(object):
             plt.scatter(ant_pos[:, 0], ant_pos[:, 2], color="red", s=3)
             plt.xlabel("X (m)")
             plt.ylabel("Z (m)")
-            plt.savefig(path.join(self.outfileroot, "antenna_position_grid_xyz.pdf"))
+            plt.savefig(path.join(self.outfileroot, "antenna_position_grid_xyz."+PLOTTYPE))
             plt.close()
 
             plt.figure()
@@ -251,7 +253,7 @@ class Observation(object):
             plt.ylim([lat_min, lat_max])
             plt.xlabel("Longitude (deg)")
             plt.ylabel("Latitude (deg)")
-            plt.savefig(path.join(self.outfileroot, "antenna_position_grid_lonlat.pdf"))
+            plt.savefig(path.join(self.outfileroot, "antenna_position_grid_lonlat."+PLOTTYPE))
             plt.close()
 
         return 0
@@ -371,7 +373,7 @@ class Observation(object):
                 plt.savefig(
                     path.join(
                         self.outfileroot,
-                        "delay_map_{:d}_{:02d}_{:02d}.pdf".format(baseline, ant1, ant2),
+                        "delay_map_{:d}_{:02d}_{:02d}.{}".format(baseline, ant1, ant2, PLOTTYPE),
                     )
                 )
                 plt.close()
@@ -436,7 +438,7 @@ class Observation(object):
             plt.savefig(
                 path.join(
                     self.outfileroot,
-                    "vis_delay_spectrum_baseline_{:d}.pdf".format(baseline),
+                    "vis_delay_spectrum_baseline_{:d}.{}".format(baseline, PLOTTYPE),
                 )
             )
             plt.close()
@@ -519,7 +521,7 @@ class Observation(object):
         plt.ylabel("Integrations")
         plt.savefig(
             path.join(
-                self.outfileroot, "shifted_delay_spectrum_{:d}.pdf".format(baseline)
+                self.outfileroot, "shifted_delay_spectrum_{:d}.{}".format(baseline, PLOTTYPE)
             )
         )
 
@@ -583,7 +585,7 @@ class Observation(object):
             plt.savefig(
                 path.join(
                     self.outfileroot,
-                    "vis_delay_spectrum_baseline_{:d}.pdf".format(baseline),
+                    "vis_delay_spectrum_baseline_{:d}.".format(baseline, PLOTTYPE),
                 )
             )
             plt.close()
@@ -671,7 +673,7 @@ class Observation(object):
         plt.ylabel("Latitude (deg)")
 
         plt.title("RFI Map")
-        plt.savefig(path.join(self.outfileroot, "rfi_map.png"))
+        plt.savefig(path.join(self.outfileroot, "rfi_map."+PLOTTYPE))
         plt.close()
 
         plt.figure(figsize=(10, 10), dpi=300)
@@ -711,7 +713,7 @@ class Observation(object):
         plt.ylabel("Latitude (deg)")
 
         plt.title("RFI Edges Map")
-        plt.savefig(path.join(self.outfileroot, "rfi_edges_map.png"))
+        plt.savefig(path.join(self.outfileroot, "rfi_edges_map."+PLOTTYPE))
         plt.close()
 
         plt.figure(figsize=(10, 10))
@@ -733,7 +735,7 @@ class Observation(object):
         plt.ylabel("Latitude (deg)")
 
         plt.title("Weight Map")
-        plt.savefig(path.join(self.outfileroot, "weight_map.pdf"))
+        plt.savefig(path.join(self.outfileroot, "weight_map."+PLOTTYPE))
         plt.close()
 
     def save_rfi_and_weights_map(self):
