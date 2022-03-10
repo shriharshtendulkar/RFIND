@@ -7,11 +7,11 @@ import numpy as np
 from scipy import fft
 from scipy.interpolate import interp1d
 from scipy import ndimage
-from scipy.signal import find_peaks_cwt
+from scipy.signal import find_peaks
 from matplotlib import pyplot as plt
 from os import path
 
-from rfind_utils import scale_visibility_data
+from rfind_utils import scale_visibility_data, mask_bright_sources, robust_rescale_1d
 
 logger = logging.getLogger()
 logger.setLevel("DEBUG")
@@ -95,7 +95,6 @@ class Observation(object):
         )
 
         self.w_delay = self.observation.uvw_array[:, 2] / SPEED_OF_LIGHT
-
 
     def remove_baselines(self, baselines):
         """
@@ -271,8 +270,6 @@ class Observation(object):
         return 0
 
     def process_phased_data(self, plot=False):
-        # make a delay map
-
         for i, bl in enumerate(self.unique_bls):
             self.process_single_phased_baseline(bl, plot=plot)
 
@@ -390,7 +387,9 @@ class Observation(object):
 
         return 0
 
-    def process_single_phased_baseline(self, baseline, plot=False, plot_with_time=True):
+    def process_single_phased_baseline(
+        self, baseline, mask_sources=True, plot=False, plot_with_time=True
+    ):
         """
         Make and process the delays for a single baseline.
 
@@ -407,7 +406,7 @@ class Observation(object):
 
         freqs = self.observation.freq_array.squeeze()
         times = self.observation.get_times(baseline).squeeze()
-        min_from_start = (times - np.min(times))*24*60 # times are in MJD
+        min_from_start = (times - np.min(times)) * 24 * 60  # times are in MJD
 
         vis = scale_visibility_data(
             vis,
@@ -420,15 +419,53 @@ class Observation(object):
             poly_freq_fit_to_log=False,
         )
 
+        ### not required since we are fitting and removing the bright sources.
         # subtract the mean along frequency axis.
-        r_vis = np.rollaxis(vis, 1)
-        r_vis -= r_vis.mean(axis=0)
-        vis = np.rollaxis(r_vis, 1)
+        # r_vis = np.rollaxis(vis, 1)
+        # r_vis -= r_vis.mean(axis=0)
+        # vis = np.rollaxis(r_vis, 1)
 
         delay_spectrum = fft.fftshift(fft.fft(vis, axis=1))
         # sum along polarization
         delay_spectrum = np.sum(np.abs(delay_spectrum), axis=2)
-        delay_spectrum -= np.median(delay_spectrum)
+        delay_spectrum -= np.median(
+            delay_spectrum, axis=0
+        )  # removes the bright sources
+
+        delay_spectrum_1d = np.mean(delay_spectrum, axis=0)
+
+        if mask_sources:
+            delay_spectrum = mask_bright_sources(
+                delay_spectrum, threshold=50, max_width=3, interp_range=20, expand=2
+            )
+
+        if plot:
+            fig = plt.figure()
+            plt.plot(
+                self.delay_spectrum_x_axis / 1e-6,
+                delay_spectrum_1d,
+                label="original",
+                alpha=0.5,
+                drawstyle="steps-mid",
+            )
+            plt.plot(
+                self.delay_spectrum_x_axis / 1e-6,
+                np.mean(delay_spectrum, axis=0),
+                label="masked",
+                alpha=0.5,
+                drawstyle="steps-mid",
+            )
+            ymin, ymax = plt.ylim()
+            plt.ylim([0, ymax])
+            plt.legend(loc="best")
+            plt.xlabel(r"Delay ($\mu$s)")
+            plt.savefig(
+                path.join(
+                    self.outfileroot,
+                    "masked_spectrum_baseline_{:d}.{}".format(baseline, PLOTTYPE),
+                )
+            )
+            plt.close(fig)
 
         if plot:
             fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 12), squeeze=True)
@@ -468,37 +505,70 @@ class Observation(object):
                     "vis_delay_spectrum_baseline_{:d}.{}".format(baseline, PLOTTYPE),
                 )
             )
-            plt.close()
+            plt.close(fig)
 
         # map the delays to the grid.
-        self._threshold_and_add_phased_delay_spectrum_to_grid(baseline, delay_spectrum, plot=plot)
+        self._threshold_and_add_phased_delay_spectrum_to_grid(
+            baseline, delay_spectrum, plot=plot
+        )
 
-    def _threshold_and_add_phased_delay_spectrum_to_grid(self, baseline, delay_spectrum, threshold=4, peak_width=5, plot=False):
+    def _threshold_and_add_phased_delay_spectrum_to_grid(
+        self,
+        baseline,
+        delay_spectrum,
+        threshold=6,
+        min_peak_width=5,
+        max_peak_width=50,
+        plot=False,
+    ):
         """
         Adds the sharp peaks above the threshold in the delay spectrum to the RFI map
         """
-        self.logger.info("Adding thresholded peaks to the grid baseline {:d}".format(baseline))
+        self.logger.info(
+            "Adding thresholded peaks to the grid baseline {:d}".format(baseline)
+        )
 
         idx = np.where(self.unique_bls == baseline)
 
-        current_delay_map = self.delay_maps[:, idx]
+        current_delay_map = (self.delay_maps[:, idx]).squeeze()
+        current_weight_map = (self.distance_weight_maps[:, idx]).squeeze()
 
         current_w_delay = self.w_delay[
             np.where(self.observation.baseline_array == baseline)
         ]
 
-        self.logger.info("Remapping the delay spectrum")
-        remapped_spectrum, x_axis = self._make_shifted_delay_spectrum(baseline, delay_spectrum, current_w_delay, plot=plot)
+        self.logger.info("Shifting the delay spectrum")
+        delayshifted_spectrum, x_axis = self._make_shifted_delay_spectrum(
+            baseline, delay_spectrum, current_w_delay, plot=plot
+        )
 
-        self.logger.info("Created a remapped delay spectrum with size {}, median = {:3.2e}, min_delay={:3.2e}, max_delay={:3.2e}".format(remapped_spectrum.shape, 
-        np.mean(remapped_spectrum), np.min(x_axis), np.max(x_axis)))
+        self.logger.info(
+            "Created a remapped delay spectrum with size {}, median = {:3.2e}, min_delay={:3.2e}, max_delay={:3.2e}".format(
+                delayshifted_spectrum.shape,
+                np.mean(delayshifted_spectrum),
+                np.min(x_axis),
+                np.max(x_axis),
+            )
+        )
 
-        remapped_spectrum_1d = np.mean(remapped_spectrum, axis=0)
-        self.logger.info("Created a remapped 1d delay_spectrum with size {} and mean {:3.2e}".format(remapped_spectrum_1d.shape, np.mean(remapped_spectrum_1d))) 
-        
+        delayshifted_spectrum_1d = np.mean(delayshifted_spectrum, axis=0)
+        self.logger.info(
+            "Created a remapped 1d delay_spectrum with size {} and mean {:3.2e}".format(
+                delayshifted_spectrum_1d.shape, np.mean(delayshifted_spectrum_1d)
+            )
+        )
+
+        # rescale
+        delayshifted_spectrum_1d = robust_rescale_1d(delayshifted_spectrum_1d)
+
         peaks = True
         try:
-            peak_idxes = find_peaks_cwt(remapped_spectrum_1d, widths = list(np.arange(peak_width)), min_snr=threshold)
+            peak_idxes, info = find_peaks(
+                delayshifted_spectrum_1d,
+                width=[min_peak_width, max_peak_width],
+                height=6,  # minimum 6 sigma above for each pixel.
+                prominence=threshold,
+            )
         except ValueError as e:
             peaks = False
             self.logger.error("Got error {}".format(e))
@@ -507,21 +577,37 @@ class Observation(object):
             fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, squeeze=True)
             axes[0].plot(
                 x_axis / 1e-6,
-                remapped_spectrum_1d,
+                delayshifted_spectrum_1d,
+                drawstyle="steps-mid",
+                lw=1,
             )
             ymin, ymax = axes[0].get_ylim()
+            axes[0].set_ylim([0, ymax])
+            ymin = 0
 
             if peaks:
-                axes[0].vlines(x_axis[peak_idxes]/1E-6, y_min, y_max, color='r', ls = 'dashed')
+                axes[0].vlines(
+                    x_axis[peak_idxes] / 1e-6,
+                    ymin,
+                    ymax,
+                    color="r",
+                    ls="dashed",
+                    lw=1,
+                )
 
             axes[1].semilogy(
                 x_axis / 1e-6,
-                remapped_spectrum_1d,
+                delayshifted_spectrum_1d,
+                drawstyle="steps-mid",
+                lw=1,
             )
-            ymin, ymax = axes[1].get_ylim() 
+            ymin, ymax = axes[1].get_ylim()
+            axes[1].set_ylim([1, ymax])
 
             if peaks:
-                axes[1].vlines(x_axis[peak_idxes]/1E-6, y_min, y_max, color='r', ls = 'dashed')
+                axes[1].vlines(
+                    x_axis[peak_idxes] / 1e-6, ymin, ymax, color="r", ls="dashed", lw=1
+                )
 
             axes[1].set_xlabel("Delay (us)")
             axes[0].set_ylabel("Integrations")
@@ -530,14 +616,36 @@ class Observation(object):
             plt.savefig(
                 path.join(
                     self.outfileroot,
-                    "collapsed_shifted_delay_spectrum_{:d}.{}".format(baseline, PLOTTYPE),
+                    "collapsed_shifted_delay_spectrum_{:d}.{}".format(
+                        baseline, PLOTTYPE
+                    ),
                 )
             )
+            plt.close(fig)
 
-        
-        #self.rfi_intensity_map += np.nan_to_num(remapped_delay, 0)
-        #self.weights_map[np.isfinite(remapped_delay)] += 1 
-        
+        # interpolate and add to the grid.
+        # throwaway the very low values.
+        # set 4-sigma threshold for now
+        delayshifted_spectrum_1d[delayshifted_spectrum_1d < 4] = 0
+
+        delay_1d_interp = interp1d(
+            x_axis,
+            delayshifted_spectrum_1d,
+            kind="nearest",
+            bounds_error=False,
+            fill_value=np.nan,
+        )
+
+        remapped_delay = delay_1d_interp(current_delay_map).squeeze()
+        self.logger.debug("Remapped_delay.shape: {}".format(remapped_delay.shape))
+        self.logger.debug(
+            "Current_weight_map.shape: {}".format(current_weight_map.shape)
+        )
+
+        self.weights_map[np.isfinite(remapped_delay)] += 1
+        self.rfi_intensity_map += np.nan_to_num(remapped_delay, 0)
+
+        self.logger.info("Added to grid")
 
     def _add_phased_delay_spectrum_to_grid(self, baseline, delay_spectrum, plot=False):
         """
@@ -554,7 +662,9 @@ class Observation(object):
             np.where(self.observation.baseline_array == baseline)
         ]
 
-        self._make_shifted_delay_spectrum(baseline, delay_spectrum, current_w_delay, plot=plot)
+        self._make_shifted_delay_spectrum(
+            baseline, delay_spectrum, current_w_delay, plot=plot
+        )
 
         for i in range(self.observation.Ntimes):
             delay_1d_interp = interp1d(
@@ -570,7 +680,9 @@ class Observation(object):
 
         self.logger.info("Added to grid")
 
-    def _make_shifted_delay_spectrum(self, baseline, delay_spectrum, current_w_delay, plot=True):
+    def _make_shifted_delay_spectrum(
+        self, baseline, delay_spectrum, current_w_delay, plot=True
+    ):
         """
         Makes a 2d plot by realigning the dely spectrum by the w delay terms.
 
@@ -589,13 +701,17 @@ class Observation(object):
         nfreqs = delay_spectrum.shape[1]
         num_delay_samp = np.int(np.ceil((max_w_delay - min_w_delay) / dt)) + nfreqs
 
-        remapped_delay = np.zeros([delay_spectrum.shape[0], num_delay_samp])+np.median(delay_spectrum)
+        remapped_delay = np.zeros(
+            [delay_spectrum.shape[0], num_delay_samp]
+        ) + np.median(delay_spectrum)
 
         for i in range(delay_spectrum.shape[0]):
             shift = np.int(np.round((current_w_delay[i] - min_w_delay) / dt))
             remapped_delay[i, shift : shift + nfreqs] = delay_spectrum[i, :]
 
-        x_axis = np.arange(num_delay_samp)*dt + min_w_delay
+        x_axis = (
+            np.arange(num_delay_samp) * dt + min_w_delay + self.delay_spectrum_x_axis[0]
+        )
 
         if plot:
             fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(10, 8), squeeze=True)

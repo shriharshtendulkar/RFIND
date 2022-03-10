@@ -18,8 +18,8 @@ obs.make_intensity_map()
 
 # obs.observation.unphase_to_drift()
 
-# for i in range(14,30):
-#    obs.remove_antenna(i)
+for i in [3, 22, 30, 31]:
+    obs.remove_antenna(i)
 
 # obs.process_drift_data(plot=False)
 # obs.process_single_drift_baseline(67586, plot=False) # 0-1
@@ -34,16 +34,17 @@ obs.make_intensity_map()
 
 # choose three antennas. 14, 19, 24 (nearest arm antennas)
 
-obs.process_single_phased_baseline(96276, plot=True)  # 14-19
-obs.process_single_phased_baseline(106521, plot=True)  # 19-24
-obs.process_single_phased_baseline(96281, plot=True)  # 14-24
+#obs.process_single_phased_baseline(96276, plot=True)  # 14-19
+#obs.process_single_phased_baseline(106521, plot=True)  # 19-24
+#obs.process_single_phased_baseline(96281, plot=True)  # 14-24
 
-obs.process_single_phased_baseline(67586, plot=True)  # 0-1
-obs.process_single_phased_baseline(67587, plot=True)  # 0-2
-obs.process_single_phased_baseline(69635, plot=True)  # 1-2
+#obs.process_single_phased_baseline(67586, plot=True)  # 0-1
+#obs.process_single_phased_baseline(67587, plot=True)  # 0-2
+#obs.process_single_phased_baseline(69635, plot=True)  # 1-2
 
-obs.process_single_phased_baseline(69647, plot=True)  # 1-14
-obs.process_single_phased_baseline(69646, plot=True)  # 1-13
-obs.process_single_phased_baseline(94223, plot=True)  # 1-2
-# obs.process_phased_data(plot=True)
+#obs.process_single_phased_baseline(69647, plot=True)  # 1-14
+#obs.process_single_phased_baseline(69646, plot=True)  # 1-13
+#obs.process_single_phased_baseline(94223, plot=True)  # 1-2
+obs.process_phased_data(plot=True)
 obs.plot_rfi_and_weights_map(log=False)
+obs.save_rfi_and_weights_map()

@@ -1,9 +1,20 @@
+from turtle import delay
 import numpy as np
 from os import path
 from astropy.modeling import models, fitting
-from astropy.stats import median_absolute_deviation as mad, mad_std
+from astropy.stats import median_absolute_deviation as mad
 from astropy.stats import sigma_clip
 from matplotlib import pyplot as plt
+from scipy.interpolate import interp1d
+from scipy.signal import find_peaks
+
+
+def robust_rescale_1d(data):
+    # subtract median and divide by mad-derived std.
+
+    data -= np.median(data)
+    data /= 1.4826 * mad(data)
+    return data
 
 
 def scale_visibility_data(
@@ -132,3 +143,42 @@ def fit_with_outlier_rejection(
         fitted_curve, mask = or_fit(poly_init, x[_min:_max], data[_min:_max])
 
     return fitted_curve, mask
+
+
+def mask_bright_sources(
+    delay_spectrum, threshold=50, max_width=2, interp_range=20, expand=2
+):
+
+    delay_spectrum_1d = np.sum(delay_spectrum, axis=0)
+
+    delay_spectrum_1d = robust_rescale_1d(delay_spectrum_1d)
+
+    peaks, info = find_peaks(
+        delay_spectrum_1d, width=[1, max_width], prominence=threshold
+    )
+
+    print(peaks, info)
+
+    num_peaks = len(peaks)
+
+    for i in range(num_peaks):
+        left = int(np.floor(info["left_ips"][i]) - expand)
+        right = int(np.ceil(info["right_ips"][i]) + expand)
+
+        # interpolation range
+        intp_left = max(0, left - interp_range)
+        intp_right = min(delay_spectrum_1d.shape[0], right + interp_range)
+
+        # mask out the bad data between left to right.
+        x = np.hstack([np.arange(intp_left, left), np.arange(right, intp_right)])
+        y = np.hstack(
+            [delay_spectrum[:, intp_left:left], delay_spectrum[:, right:intp_right]]
+        )
+
+        print("x.shape = {} y.shape = {}".format(x.shape, y.shape))
+
+        intp = interp1d(x, y, kind="quadratic", axis=1)
+
+        delay_spectrum[:, left:right] = intp(np.arange(left, right))
+
+    return delay_spectrum
