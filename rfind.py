@@ -96,6 +96,8 @@ class Observation(object):
 
         self.w_delay = self.observation.uvw_array[:, 2] / SPEED_OF_LIGHT
 
+        self.output_dicts = {}
+
     def remove_baselines(self, baselines):
         """
         Remove a list of baselines from the unique baselines list.
@@ -512,8 +514,8 @@ class Observation(object):
             baseline, delay_spectrum, plot=plot
         )
 
-        del(delay_spectrum)
-        del(vis)
+        del delay_spectrum
+        del vis
 
     def _threshold_and_add_phased_delay_spectrum_to_grid(
         self,
@@ -579,10 +581,7 @@ class Observation(object):
         if plot:
             fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, squeeze=True)
             axes[0].plot(
-                x_axis / 1e-6,
-                delayshifted_spectrum_1d,
-                drawstyle="steps-mid",
-                lw=1,
+                x_axis / 1e-6, delayshifted_spectrum_1d, drawstyle="steps-mid", lw=1,
             )
             ymin, ymax = axes[0].get_ylim()
             axes[0].set_ylim([0, ymax])
@@ -590,19 +589,11 @@ class Observation(object):
 
             if peaks:
                 axes[0].vlines(
-                    x_axis[peak_idxes] / 1e-6,
-                    ymin,
-                    ymax,
-                    color="r",
-                    ls="dashed",
-                    lw=1,
+                    x_axis[peak_idxes] / 1e-6, ymin, ymax, color="r", ls="dashed", lw=1,
                 )
 
             axes[1].semilogy(
-                x_axis / 1e-6,
-                delayshifted_spectrum_1d,
-                drawstyle="steps-mid",
-                lw=1,
+                x_axis / 1e-6, delayshifted_spectrum_1d, drawstyle="steps-mid", lw=1,
             )
             ymin, ymax = axes[1].get_ylim()
             axes[1].set_ylim([1, ymax])
@@ -631,6 +622,11 @@ class Observation(object):
         # set 4-sigma threshold for now
         delayshifted_spectrum_1d[delayshifted_spectrum_1d < 4] = 0
 
+        self.output_dicts[baseline] = {
+            "1d_delay_spectrum": delayshifted_spectrum_1d,
+            "x_axis": x_axis,
+        }
+
         delay_1d_interp = interp1d(
             x_axis,
             delayshifted_spectrum_1d,
@@ -649,7 +645,6 @@ class Observation(object):
         self.rfi_intensity_map += np.nan_to_num(remapped_delay, 0)
 
         self.logger.info("Added to grid")
-
 
     def _add_phased_delay_spectrum_to_grid(self, baseline, delay_spectrum, plot=False):
         """

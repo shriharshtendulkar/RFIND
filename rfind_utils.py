@@ -10,6 +10,7 @@ from scipy.signal import find_peaks
 
 SPEED_OF_LIGHT = 2.99792458e8  # meters per second
 
+
 def robust_rescale_1d(data):
     # subtract median and divide by mad-derived std.
 
@@ -190,26 +191,26 @@ def hyperbola(delay_s, p0, p1, range=10000, pts=200):
     Plots a hyperbola with positions p0 = (x0, y0) and p1 = (x1, y1) as the foci.
     The delay is defined in seconds of light travel time such that positive --> closer to p0.
     """
-    x0, y0 = p0 # position in meteres
-    x1, y1 = p1 # position in meters
+    x0, y0 = p0  # position in meteres
+    x1, y1 = p1  # position in meters
 
-    angle = np.pi-np.arctan2((y1-y0), (x1-x0))
+    angle = np.pi - np.arctan2((y1 - y0), (x1 - x0))
 
-    c = np.sqrt((x0-x1)**2 + (y0-y1)**2)/2
-    a = delay_s*SPEED_OF_LIGHT/2 #convert from seconds to meters
+    c = np.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2) / 2
+    a = delay_s * SPEED_OF_LIGHT / 2  # convert from seconds to meters
 
     xy = cartesian_hyperbola(c, a, range, pts)
 
     # shift the focus from (c, 0) to origin.
-    xy[0,:] -= c
+    xy[0, :] -= c
 
     # rotate to p1 -> p0 angle.
-    rot = np.array([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
+    rot = np.array([[np.cos(angle), np.sin(angle)], [-np.sin(angle), np.cos(angle)]])
     xyp = np.matmul(rot, xy)
 
     # shift origin to p0
-    xyp[0,:] += x0
-    xyp[1,:] += y0
+    xyp[0, :] += x0
+    xyp[1, :] += y0
 
     return xyp
 
@@ -219,7 +220,6 @@ def cartesian_hyperbola(c, a, range, pts):
     Returns a hyperbola around the focus at (c,0). The other focus is at (-c,0)
     """
     y = np.linspace(-range, range, pts, endpoint=True)
-    b = np.sqrt(c**2-a**2)
-    x = a*np.sqrt(1+y**2/b**2)
-    return np.vstack([x,y])
-
+    b = np.sqrt(c ** 2 - a ** 2)
+    x = a * np.sqrt(1 + y ** 2 / b ** 2)
+    return np.vstack([x, y])
