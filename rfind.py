@@ -512,6 +512,9 @@ class Observation(object):
             baseline, delay_spectrum, plot=plot
         )
 
+        del(delay_spectrum)
+        del(vis)
+
     def _threshold_and_add_phased_delay_spectrum_to_grid(
         self,
         baseline,
@@ -646,6 +649,7 @@ class Observation(object):
         self.rfi_intensity_map += np.nan_to_num(remapped_delay, 0)
 
         self.logger.info("Added to grid")
+
 
     def _add_phased_delay_spectrum_to_grid(self, baseline, delay_spectrum, plot=False):
         """
