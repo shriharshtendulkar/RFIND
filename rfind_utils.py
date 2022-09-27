@@ -220,6 +220,12 @@ def cartesian_hyperbola(c, a, range, pts):
     Returns a hyperbola around the focus at (c,0). The other focus is at (-c,0)
     """
     y = np.linspace(-range, range, pts, endpoint=True)
-    b = np.sqrt(c ** 2 - a ** 2)
-    x = a * np.sqrt(1 + y ** 2 / b ** 2)
+    b = np.sqrt(c**2 - a**2)
+    x = a * np.sqrt(1 + y**2 / b**2)
     return np.vstack([x, y])
+
+
+def simple_baseline_to_ant_pair(bl):
+    ant1 = bl % 256 - 1
+    ant2 = bl - (ant1 + 1) // 256 - 1
+    return ant1, ant2
