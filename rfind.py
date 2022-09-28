@@ -703,6 +703,8 @@ class Observation(object):
             baseline, delay_spectrum, current_w_delay, plot=plot
         )
 
+        dt = x_axis[1]-x_axis[0]
+
         self.logger.info(
             "Created a remapped delay spectrum with size {}, median = {:3.2e}, min_delay={:3.2e}, max_delay={:3.2e}".format(
                 delayshifted_spectrum.shape,
@@ -746,6 +748,7 @@ class Observation(object):
                 smooth_ampl=smoothed_delayshifted_spectrum_1d,
                 peaks=peak_idxes,
                 peak_props=info,
+                dt=dt,
             )
 
         if plot:
@@ -829,9 +832,9 @@ class Observation(object):
             amp = info["peak_heights"][i]
             
             if width_calc:
-                peak_width = width[i]
+                peak_width = width[i]*dt
             else:
-                peak_width=width
+                peak_width=width*dt
 
             self.output_records.append([time_segment, baseline, t, amp, peak_width])
             self.logger.debug(
