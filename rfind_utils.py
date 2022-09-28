@@ -61,7 +61,8 @@ def scale_visibility_data(
     threshold = 4
     filt = np.where((mean > med_mean + threshold * mad_mean))
 
-    vis[:, filt, :] = 0
+    med_vis = np.median(vis[:, filt, :])
+    vis[:, filt, :] = med_vis
 
     # plot the data with mask.
     dyn = np.sum(np.abs(vis), axis=2)

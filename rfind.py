@@ -675,7 +675,7 @@ class Observation(object):
             "threshold": None,
             "distance": 10,
             "prominence": 7,
-            "width": None,
+            "width": [1,50],
             "wlen": None,
             "rel_height": 0.5,
             "plateau_size": None,
@@ -815,15 +815,28 @@ class Observation(object):
         # set 4-sigma threshold for now
 
         time_segment = 0
+
+        width_calc=True
+        if 'widths' not in info.keys():
+            width_calc=False
+            width=1
+        else:
+            width=info.get('widths')
+
         for i, peak_idx in enumerate(peak_idxes):
             # add the peaks
             t = x_axis[peak_idx]
             amp = info["peak_heights"][i]
-            width = info.get("widths", 1.0)
-            self.output_records.append([time_segment, baseline, t, amp, width])
+            
+            if width_calc:
+                peak_width = width[i]
+            else:
+                peak_width=width
+
+            self.output_records.append([time_segment, baseline, t, amp, peak_width])
             self.logger.debug(
-                "Appended [{:d}, {:d}, {:f}, {:f}, {:f}] to records.".format(
-                    time_segment, baseline, t, amp, width
+                "Appended [{:d}, {:d}, {:f}, {:f}, {}] to records.".format(
+                    time_segment, baseline, t, amp, peak_width
                 )
             )
 
@@ -1044,7 +1057,7 @@ class Observation(object):
     def save_output_records(self):
 
         output = np.rec.fromrecords(
-            self.output_records, names="timesegment, baseline, delay, amplitude"
+            self.output_records, names="timesegment, baseline, delay, amplitude, width"
         )
 
         enu_positions = pyuvdata.utils.ENU_from_ECEF(
