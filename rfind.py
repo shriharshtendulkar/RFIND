@@ -703,7 +703,7 @@ class Observation(object):
             baseline, delay_spectrum, current_w_delay, plot=plot
         )
 
-        dt = x_axis[1]-x_axis[0]
+        dt = xaxis[1]-xaxis[0]
 
         self.logger.info(
             "Created a remapped delay spectrum with size {}, median = {:3.2e}, min_delay={:3.2e}, max_delay={:3.2e}".format(

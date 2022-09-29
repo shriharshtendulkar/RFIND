@@ -1,12 +1,13 @@
-from turtle import delay
 import numpy as np
 from os import path
+from pyuvdata import utils
 from astropy.modeling import models, fitting
 from astropy.stats import median_absolute_deviation as mad
 from astropy.stats import sigma_clip
 from matplotlib import pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
+from scipy.optimize import minimize
 
 SPEED_OF_LIGHT = 2.99792458e8  # meters per second
 
@@ -230,3 +231,117 @@ def simple_baseline_to_ant_pair(bl):
     ant1 = bl % 256 - 1
     ant2 = bl - (ant1 + 1) // 256 - 1
     return ant1, ant2
+
+def solve_3d_hyperbola(ant_pos, delays, bounds):
+    """
+    Solves the intersection of 3 hyperbolas in 3d space.
+
+    Definitions:
+    ant_pos(6,3): antenna positions P1,.. P6 where P = (x, y, z) in cartesian coordinates.
+    delays (3)
+    We solve for P where
+    (x1-x)**2+(y1-y)**2+(z1-z)**2-(x2-x)**2-(y2-y)**2-(z2-z)**2 = delays[1]**2
+    (x3-x)**2+(y3-y)**2+(z3-z)**2-(x4-x)**2-(y4-y)**2-(z4-z)**2 = delays[2]**2
+    (x5-x)**2+(y5-y)**2+(z5-z)**2-(x6-x)**2-(y6-y)**2-(z6-z)**2 = delays[3]**2
+    """
+    d1, d2, d3 = delays
+    x1, y1, z1 = ant_pos[0,:]
+    x2, y2, z2 = ant_pos[1,:]
+    x3, y3, z3 = ant_pos[2,:]
+    x4, y4, z4 = ant_pos[3,:]
+    x5, y5, z5 = ant_pos[4,:]
+    x6, y6, z6 = ant_pos[5,:]
+
+    func = lambda p: (((x1-p[0])**2+(y1-p[1])**2+(z1-p[2])**2-(x2-p[0])**2-(y2-p[1])**2-(z2-p[2])**2 - d1**2)**2 
+                    + ((x3-p[0])**2+(y3-p[1])**2+(z3-p[2])**2-(x4-p[0])**2-(y4-p[1])**2-(z4-p[2])**2 - d2**2)**2 
+                    + ((x5-p[0])**2+(y5-p[1])**2+(z5-p[2])**2-(x6-p[0])**2-(y6-p[1])**2-(z6-p[2])**2 - d3**2)**2)
+
+    x0 = np.mean(ant_pos, axis=0)
+
+    p = minimize(func, x0, bounds=bounds)
+
+    return p
+
+def calculate_likely_intersections(positions, delays, bounds, limit):
+    """
+    Chooses all combinations of three unique baselines, chooses all combinations of three unique delays from each of them.
+    Calculates a possible intersection. Saves the location of the intersection and the function value.
+    """
+
+    unique_bls = np.unique(delays['baseline'])
+
+    start=True
+    dtype=np.dtype([('x', np.float64),('y', np.float64),('z', np.float64),('w', np.float64)])
+    ret_array = np.zeros((1,), dtype=dtype)
+    for i in range(len(unique_bls)-2):
+        for j in range(i+1, len(unique_bls)-1):
+            for k in range(j+1, len(unique_bls)):
+                print("i, j, k: ({}, {}, {}) from {}".format(i,j,k, len(unique_bls)))
+                print("bls: {}, {}, {}".format(unique_bls[i], unique_bls[j], unique_bls[k]))
+                filt1 = np.where(delays['baseline']==unique_bls[i])
+                filt2 = np.where(delays['baseline']==unique_bls[j])
+                filt3 = np.where(delays['baseline']==unique_bls[k])
+
+                if start:
+                    ret_array = calculate_likely_intersections_baselines(positions, delays[filt1], delays[filt2], delays[filt3], bounds=bounds, limit=limit)
+                    start=False
+                else:
+                    temp_array = calculate_likely_intersections_baselines(positions, delays[filt1], delays[filt2], delays[filt3], bounds=bounds, limit=limit)
+                    ret_array = np.vstack([ret_array, temp_array])
+    return ret_array
+
+def calculate_likely_intersections_baselines(positions, delays1, delays2, delays3, bounds, limit):
+    """
+    Chooses every combination of a delay from each baseline and then calculates a possible intersection.
+    """
+
+    num_delays1 = len(delays1)
+    num_delays2 = len(delays2)
+    num_delays3 = len(delays3)
+
+    bl1 = delays1['baseline'][0]
+    bl2 = delays2['baseline'][0]
+    bl3 = delays3['baseline'][0]
+
+    ant1, ant2 = utils.baseline_to_antnums(bl1, 30)
+    ant3, ant4 = utils.baseline_to_antnums(bl2, 30)
+    ant5, ant6 = utils.baseline_to_antnums(bl3, 30)
+
+    ant_pos = np.zeros((6,3))
+
+    ant_pos[0,:] = positions[ant1,:]
+    ant_pos[1,:] = positions[ant2,:]
+    ant_pos[2,:] = positions[ant3,:]
+    ant_pos[3,:] = positions[ant4,:]
+    ant_pos[4,:] = positions[ant5,:]
+    ant_pos[5,:] = positions[ant6,:]
+
+    start=True
+    dtype=np.dtype([('x', np.float64),('y', np.float64),('z', np.float64),('w', np.float64)])
+    ret_array = np.zeros((1,), dtype=dtype)
+    for i in range(num_delays1):
+        for j in range(num_delays2):
+            for k in range(num_delays3):
+                print("Delays: {}/{} {}/{} {}/{}".format(i, num_delays1, j, num_delays2, k, num_delays3))
+                delay_dist1 = delays1[i]['delay']*SPEED_OF_LIGHT
+                delay_dist2 = delays2[j]['delay']*SPEED_OF_LIGHT
+                delay_dist3 = delays3[k]['delay']*SPEED_OF_LIGHT
+
+                sol = solve_3d_hyperbola(ant_pos, [delay_dist1, delay_dist2, delay_dist3], bounds)
+                if sol['fun'] < limit and sol['success']:
+                    if start:
+                        ret_array['x'][0] = sol['x'][0]
+                        ret_array['y'][0] = sol['x'][1]
+                        ret_array['z'][0] = sol['x'][2]
+                        ret_array['w'][0] = sol['fun']
+                        start=False
+
+                    else:
+                        temp_array = np.zeros((1,), dtype=dtype)
+                        temp_array['x'][0] = sol['x'][0]
+                        temp_array['y'][0] = sol['x'][1]
+                        temp_array['z'][0] = sol['x'][2]
+                        temp_array['w'][0] = sol['fun']
+                        ret_array = np.vstack((ret_array, temp_array))
+
+    return ret_array
