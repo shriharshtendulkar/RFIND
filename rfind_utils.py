@@ -271,23 +271,28 @@ def calculate_likely_intersections(positions, delays, bounds, limit):
     unique_bls = np.unique(delays['baseline'])
 
     start=True
+    solve=False
     dtype=np.dtype([('x', np.float64),('y', np.float64),('z', np.float64),('w', np.float64)])
     ret_array = np.zeros((1,), dtype=dtype)
     for i in range(len(unique_bls)-2):
         for j in range(i+1, len(unique_bls)-1):
             for k in range(j+1, len(unique_bls)):
-                print("i, j, k: ({}, {}, {}) from {}".format(i,j,k, len(unique_bls)))
-                print("bls: {}, {}, {}".format(unique_bls[i], unique_bls[j], unique_bls[k]))
+                #print("i, j, k: ({}, {}, {}) from {}".format(i,j,k, len(unique_bls)))
+                #print("bls: {}, {}, {}".format(unique_bls[i], unique_bls[j], unique_bls[k]))
                 filt1 = np.where(delays['baseline']==unique_bls[i])
                 filt2 = np.where(delays['baseline']==unique_bls[j])
                 filt3 = np.where(delays['baseline']==unique_bls[k])
 
-                if start:
-                    ret_array = calculate_likely_intersections_baselines(positions, delays[filt1], delays[filt2], delays[filt3], bounds=bounds, limit=limit)
-                    start=False
-                else:
-                    temp_array = calculate_likely_intersections_baselines(positions, delays[filt1], delays[filt2], delays[filt3], bounds=bounds, limit=limit)
-                    ret_array = np.vstack([ret_array, temp_array])
+                temp_array = calculate_likely_intersections_baselines(positions, delays[filt1], delays[filt2], delays[filt3], bounds=bounds, limit=limit)
+
+                if temp_array is not None:
+                    solve=True
+                    if start:
+                        ret_array = temp_array
+                        start=False
+                    else:
+                        ret_array = np.vstack([ret_array, temp_array])
+                
     return ret_array
 
 def calculate_likely_intersections_baselines(positions, delays1, delays2, delays3, bounds, limit):
@@ -317,18 +322,20 @@ def calculate_likely_intersections_baselines(positions, delays1, delays2, delays
     ant_pos[5,:] = positions[ant6,:]
 
     start=True
+    solve=False
     dtype=np.dtype([('x', np.float64),('y', np.float64),('z', np.float64),('w', np.float64)])
     ret_array = np.zeros((1,), dtype=dtype)
     for i in range(num_delays1):
         for j in range(num_delays2):
             for k in range(num_delays3):
-                print("Delays: {}/{} {}/{} {}/{}".format(i, num_delays1, j, num_delays2, k, num_delays3))
+                #print("Delays: {}/{} {}/{} {}/{}".format(i, num_delays1, j, num_delays2, k, num_delays3))
                 delay_dist1 = delays1[i]['delay']*SPEED_OF_LIGHT
                 delay_dist2 = delays2[j]['delay']*SPEED_OF_LIGHT
                 delay_dist3 = delays3[k]['delay']*SPEED_OF_LIGHT
 
                 sol = solve_3d_hyperbola(ant_pos, [delay_dist1, delay_dist2, delay_dist3], bounds)
                 if sol['fun'] < limit and sol['success']:
+                    solve=True
                     if start:
                         ret_array['x'][0] = sol['x'][0]
                         ret_array['y'][0] = sol['x'][1]
@@ -343,5 +350,7 @@ def calculate_likely_intersections_baselines(positions, delays1, delays2, delays
                         temp_array['z'][0] = sol['x'][2]
                         temp_array['w'][0] = sol['fun']
                         ret_array = np.vstack((ret_array, temp_array))
-
-    return ret_array
+    if solve:
+        return ret_array
+    else:
+        return None

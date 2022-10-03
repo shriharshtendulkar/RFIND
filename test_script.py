@@ -27,17 +27,17 @@ for i in [3, 22, 30, 31]:
 
 # choose three antennas. 14, 19, 24 (nearest arm antennas)
 
-obs.process_single_phased_baseline(96276, plot=PLOT, save_1d_spec=save)  # 14-19
-obs.process_single_phased_baseline(106521, plot=PLOT, save_1d_spec=save)  # 19-24
-obs.process_single_phased_baseline(96281, plot=PLOT, save_1d_spec=save)  # 14-24
+#obs.process_single_phased_baseline(96276, plot=PLOT, save_1d_spec=save)  # 14-19
+#obs.process_single_phased_baseline(106521, plot=PLOT, save_1d_spec=save)  # 19-24
+#obs.process_single_phased_baseline(96281, plot=PLOT, save_1d_spec=save)  # 14-24
 
-obs.process_single_phased_baseline(67586, plot=PLOT, save_1d_spec=save)  # 0-1
-obs.process_single_phased_baseline(67587, plot=PLOT, save_1d_spec=save)  # 0-2
-obs.process_single_phased_baseline(69635, plot=PLOT, save_1d_spec=save)  # 1-2
+#obs.process_single_phased_baseline(67586, plot=PLOT, save_1d_spec=save)  # 0-1
+#obs.process_single_phased_baseline(67587, plot=PLOT, save_1d_spec=save)  # 0-2
+#obs.process_single_phased_baseline(69635, plot=PLOT, save_1d_spec=save)  # 1-2
 
-obs.process_single_phased_baseline(69647, plot=PLOT, save_1d_spec=save)  # 1-14
-obs.process_single_phased_baseline(69646, plot=PLOT, save_1d_spec=save)  # 1-13
-obs.process_single_phased_baseline(94223, plot=PLOT, save_1d_spec=save)  # 13-14
+#obs.process_single_phased_baseline(69647, plot=PLOT, save_1d_spec=save)  # 1-14
+#obs.process_single_phased_baseline(69646, plot=PLOT, save_1d_spec=save)  # 1-13
+#obs.process_single_phased_baseline(94223, plot=PLOT, save_1d_spec=save)  # 13-14
 
 # random baselines
 #obs.process_single_phased_baseline(67610, plot=PLOT, save_1d_spec=save)  # 0-25
@@ -47,7 +47,7 @@ obs.process_single_phased_baseline(94223, plot=PLOT, save_1d_spec=save)  # 13-14
 #obs.process_single_phased_baseline(90128, plot=PLOT, save_1d_spec=save)
 
 
-#obs.process_phased_data(plot=False)
+obs.process_phased_data(plot=False)
 #obs.plot_rfi_and_weights_map(log=False)
 #obs.save_rfi_and_weights_map()
 obs.save_output_records()

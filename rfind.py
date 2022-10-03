@@ -156,6 +156,19 @@ class Observation(object):
 
         return 0
 
+    def remove_long_baselines(self, dist_limit):
+        remove_bl = []
+        for baseline in self.unique_bls:
+            ant1, ant2 = self.observation.baseline_to_antnums(baseline)
+            ant1_pos = self.observation.antenna_positions[ant1, :]
+            ant2_pos = self.observation.antenna_positions[ant2, :]
+            dist = np.sqrt(np.sum((ant1_pos-ant2_pos)**2))
+            if dist > dist_limit:
+                self.logger.info("Marking basline {} with separation {} for removal".format(baseline, dist))
+                remove_bl.append(baseline)
+        self.remove_baselines(remove_bl)
+
+        
     def add_antenna(self, antenna):
         """
         Add baselines corresponding to a single antenna to the list of baselines
@@ -703,7 +716,7 @@ class Observation(object):
             baseline, delay_spectrum, current_w_delay, plot=plot
         )
 
-        dt = xaxis[1]-xaxis[0]
+        dt = x_axis[1]-x_axis[0]
 
         self.logger.info(
             "Created a remapped delay spectrum with size {}, median = {:3.2e}, min_delay={:3.2e}, max_delay={:3.2e}".format(
